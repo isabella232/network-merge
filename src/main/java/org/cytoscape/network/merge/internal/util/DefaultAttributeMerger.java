@@ -64,7 +64,10 @@ public class DefaultAttributeMerger implements AttributeMerger {
 			final ColumnType fromColType = ColumnType.getType(fromColumn);
 
 			if (colType == ColumnType.STRING) {
-				final String fromValue = fromCyRow.get(fromColumn.getName(), String.class);
+				Object fromValue = fromCyRow.get(fromColumn.getName(), fromColType.getType());
+				if (fromValue != null && fromColType != colType) {
+					fromValue = colType.castService(fromValue);
+				}
 				final String o2 = cyRow.get(column.getName(), String.class);
 				
 				if (o2 == null || o2.length() == 0) { // null or empty attribute
@@ -75,17 +78,19 @@ public class DefaultAttributeMerger implements AttributeMerger {
 					// add to conflict collector
 					conflictCollector.addConflict(from, fromColumn, graphObject, column);
 				}
-			} else if (!colType.isList()) { // simple type (Integer, Long,
-											// Double, Boolean)
+			} else if (!colType.isList()) { // simple type (Integer, Long, Double, Boolean)
 				Object o1 = fromCyRow.get(fromColumn.getName(), fromColType.getType());
-				if (fromColType != colType) {
+				Object o2 = cyRow.get(column.getName(), colType.getType());
+				if (o1 != null && fromColType != colType) {
 					o1 = colType.castService(o1);
 				}
 
-				Object o2 = cyRow.get(column.getName(), colType.getType());
+				// Object o2 = cyRow.get(column.getName(), colType.getType());
 				if (o2 == null) {
 					cyRow.set(column.getName(), o1);
 					// continue;
+				} else if (o1 == null) {
+					cyRow.set(column.getName(), o2);
 				} else if (o1.equals(o2)) {
 					// continue; // the same, do nothing
 				} else { // attribute conflict

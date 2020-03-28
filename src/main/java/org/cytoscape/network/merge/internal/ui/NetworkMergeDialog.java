@@ -79,11 +79,13 @@ import org.cytoscape.network.merge.internal.model.AttributeMappingImpl;
 import org.cytoscape.network.merge.internal.model.MatchingAttribute;
 import org.cytoscape.network.merge.internal.model.MatchingAttributeImpl;
 import org.cytoscape.network.merge.internal.task.NetworkMergeTask;
+import org.cytoscape.service.util.CyServiceRegistrar;
 import org.cytoscape.session.CyNetworkNaming;
 import org.cytoscape.task.create.CreateNetworkViewTaskFactory;
 import org.cytoscape.util.swing.BasicCollapsiblePanel;
 import org.cytoscape.util.swing.IconManager;
 import org.cytoscape.util.swing.LookAndFeelUtil;
+import org.cytoscape.work.swing.DialogTaskManager;
 import org.cytoscape.work.TaskIterator;
 import org.cytoscape.work.TaskManager;
 
@@ -95,11 +97,10 @@ public class NetworkMergeDialog extends JDialog {
 	private static final long serialVersionUID = 1013626339762545400L;
 	
 	private final CyNetworkManager cnm;
-	private final CyNetworkFactory cnf;
 	private final CyNetworkNaming cnn;
+	private final CyServiceRegistrar serviceRegistrar;
 	private final TaskManager<?, ?> taskManager;
 	private final IconManager iconMgr;
-	private CreateNetworkViewTaskFactory netViewCreator;
 	
 	private JPanel operationPnl;
 	private ButtonGroup operationGroup;
@@ -131,31 +132,23 @@ public class NetworkMergeDialog extends JDialog {
 	private JButton okBtn;
 	
 	private final TreeMap<Operation, AbstractButton> operationButtons;
-	private Map<String, Map<String, Set<String>>> selectedNetAttrIDType;
 	
 	private final AttributeMapping nodeAttrMapping;
 	private final AttributeMapping edgeAttrMapping;
 	private final MatchingAttribute matchingAttr;
 //	boolean checkCyThesaurus;
 	
-	private String tgtType;
 	private Operation selectedOperation = Operation.UNION;
 	
 	/** Creates new form NetworkMergeDialog */
-	public NetworkMergeDialog(final CyNetworkManager cnm,
-							  final CyNetworkFactory cnf,
-							  final CyNetworkNaming cnn,
-							  final TaskManager<?, ?> taskManager,
-							  final IconManager iconMgr,
-							  final CreateNetworkViewTaskFactory netViewCreator) {
+	public NetworkMergeDialog(final CyServiceRegistrar serviceRegistrar) {
 		this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
-		this.cnm = cnm;
-		this.cnf = cnf;
-		this.cnn = cnn;
-		this.taskManager = taskManager;
-		this.iconMgr = iconMgr;
-		this.netViewCreator = netViewCreator;
+		this.serviceRegistrar = serviceRegistrar;
+		this.cnm = serviceRegistrar.getService(CyNetworkManager.class);
+		this.cnn = serviceRegistrar.getService(CyNetworkNaming.class);
+		this.taskManager = serviceRegistrar.getService(DialogTaskManager.class);
+		this.iconMgr = serviceRegistrar.getService(IconManager.class);
 
 //		checkCyThesaurus = checkCyThesaurus();
 		
@@ -829,10 +822,10 @@ public class NetworkMergeDialog extends JDialog {
 					final AttributeConflictCollector conflictCollector = new AttributeConflictCollectorImpl();
 
 					// Network merge task
-					final NetworkMergeTask nmTask = new NetworkMergeTask(cnf, cnm, netName, matchingAttr,
+					final NetworkMergeTask nmTask = new NetworkMergeTask(serviceRegistrar, netName, matchingAttr,
 							nodeAttrMapping, edgeAttrMapping, selectedNetData.getNetworkList(),
-							getOperation(), getDifference1Btn().isSelected(), conflictCollector, selectedNetAttrIDType, tgtType,
-							getInNetMergeCkb().isSelected(), netViewCreator);
+							getOperation(), getDifference1Btn().isSelected(), conflictCollector, 
+							getInNetMergeCkb().isSelected());
 
 					final TaskIterator ti = new TaskIterator(nmTask);
 

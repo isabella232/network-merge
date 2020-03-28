@@ -24,6 +24,7 @@ package org.cytoscape.network.merge.internal.task;
  * #L%
  */
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,12 +42,16 @@ import org.cytoscape.network.merge.internal.util.AttributeMerger;
 import org.cytoscape.network.merge.internal.util.AttributeValueMatcher;
 import org.cytoscape.network.merge.internal.util.DefaultAttributeMerger;
 import org.cytoscape.network.merge.internal.util.DefaultAttributeValueMatcher;
+import org.cytoscape.service.util.CyServiceRegistrar;
 import org.cytoscape.task.create.CreateNetworkViewTaskFactory;
+import org.cytoscape.util.json.CyJSONUtil;
 import org.cytoscape.work.AbstractTask;
+import org.cytoscape.work.ObservableTask;
 import org.cytoscape.work.TaskMonitor;
+import org.cytoscape.work.json.JSONResult;
 
 
-public class NetworkMergeTask extends AbstractTask {	
+public class NetworkMergeTask extends AbstractTask implements ObservableTask {	
 	private final List<CyNetwork> selectedNetworkList;
 	private final Operation operation;
 	private final boolean subtractOnlyUnconnectedNodes;
@@ -54,6 +59,7 @@ public class NetworkMergeTask extends AbstractTask {
 
 	
 	final private CreateNetworkViewTaskFactory netViewCreator;
+	final private CyServiceRegistrar serviceRegistrar; 
 
 	private final MatchingAttribute matchingAttribute;
 	private final AttributeMapping nodeAttributeMapping;
@@ -64,6 +70,7 @@ public class NetworkMergeTask extends AbstractTask {
 	private final CyNetworkFactory cnf;
 	private final CyNetworkManager networkManager;
 	private final String networkName;
+	private CyNetwork newNetwork;
 	
 	private AttributeBasedNetworkMerge networkMerge;
 
@@ -71,25 +78,26 @@ public class NetworkMergeTask extends AbstractTask {
 	 * Constructor.<br>
 	 * 
 	 */
-	public NetworkMergeTask(final CyNetworkFactory cnf, final CyNetworkManager networkManager,
+	public NetworkMergeTask( final CyServiceRegistrar serviceRegistrar,
 			final String networkName, final MatchingAttribute matchingAttribute,
 			final AttributeMapping nodeAttributeMapping, final AttributeMapping edgeAttributeMapping,
 			final List<CyNetwork> selectedNetworkList, final Operation operation, 
 			final boolean subtractOnlyUnconnectedNodes, final AttributeConflictCollector conflictCollector,
-			final Map<String, Map<String, Set<String>>> selectedNetworkAttributeIDType, final String tgtType,
-			final boolean inNetworkMerge, final CreateNetworkViewTaskFactory netViewCreator) {
+			final boolean inNetworkMerge) {
+		this.serviceRegistrar = serviceRegistrar;
 		this.selectedNetworkList = selectedNetworkList;
 		this.operation = operation;
 		this.subtractOnlyUnconnectedNodes = subtractOnlyUnconnectedNodes;
 		this.conflictCollector = conflictCollector;
-		this.netViewCreator = netViewCreator;
 		this.matchingAttribute = matchingAttribute;
 		this.inNetworkMerge = inNetworkMerge;
 		this.nodeAttributeMapping = nodeAttributeMapping;
 		this.edgeAttributeMapping = edgeAttributeMapping;
 		this.networkName = networkName;
-		this.cnf = cnf;
-		this.networkManager = networkManager;
+
+		this.cnf = serviceRegistrar.getService(CyNetworkFactory.class);
+		this.networkManager = serviceRegistrar.getService(CyNetworkManager.class);
+		this.netViewCreator = serviceRegistrar.getService(CreateNetworkViewTaskFactory.class);
 	}
 
 	@Override
@@ -107,7 +115,7 @@ public class NetworkMergeTask extends AbstractTask {
 
 		// Create new network (merged network)
 		taskMonitor.setStatusMessage("Creating new merged network...");
-		CyNetwork newNetwork = cnf.createNetwork();
+		newNetwork = cnf.createNetwork();
 		newNetwork.getRow(newNetwork).set(CyNetwork.NAME, networkName);
 
 		// Register merged network
@@ -149,4 +157,30 @@ public class NetworkMergeTask extends AbstractTask {
 		
 		taskMonitor.setProgress(1.0d);
 	}
+
+	@Override
+	public List<Class<?>> getResultClasses() { 
+		return Arrays.asList(String.class, CyNetwork.class, JSONResult.class);
+	}
+
+	@Override
+	public <R> R getResults(Class<? extends R> type) {
+    if (type.equals(CyNetwork.class)) {
+      return (R)newNetwork;
+    } else if (type.equals(String.class)){
+      if (newNetwork == null)
+        return (R)"<none>";
+      return (R)newNetwork.toString();
+    } else if (type.equals(JSONResult.class)) {
+      JSONResult res = () -> {if (newNetwork == null)
+        return "{}";
+      else {
+        CyJSONUtil cyJSONUtil = serviceRegistrar.getService(CyJSONUtil.class);
+        return cyJSONUtil.toJson(newNetwork);
+      }};
+      return (R)res;
+    }
+    return (R)newNetwork;
+	}
+
 }

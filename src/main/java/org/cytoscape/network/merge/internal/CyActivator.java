@@ -26,19 +26,22 @@ package org.cytoscape.network.merge.internal;
 
 import java.util.Properties;
 
-import org.cytoscape.application.CyApplicationManager;
 import org.cytoscape.application.swing.CyAction;
-import org.cytoscape.application.swing.CySwingApplication;
-import org.cytoscape.model.CyNetworkFactory;
-import org.cytoscape.model.CyNetworkManager;
 import org.cytoscape.service.util.AbstractCyActivator;
-import org.cytoscape.session.CyNetworkNaming;
-import org.cytoscape.task.create.CreateNetworkViewTaskFactory;
-import org.cytoscape.util.swing.IconManager;
-import org.cytoscape.view.model.CyNetworkViewManager;
+import org.cytoscape.service.util.CyServiceRegistrar;
 import org.cytoscape.work.ServiceProperties;
-import org.cytoscape.work.swing.DialogTaskManager;
+import org.cytoscape.work.TaskFactory;
 import org.osgi.framework.BundleContext;
+
+import org.cytoscape.network.merge.internal.task.NetworkMergeCommandTaskFactory;
+
+import static org.cytoscape.work.ServiceProperties.COMMAND;
+import static org.cytoscape.work.ServiceProperties.COMMAND_DESCRIPTION;
+import static org.cytoscape.work.ServiceProperties.COMMAND_EXAMPLE_JSON;
+import static org.cytoscape.work.ServiceProperties.COMMAND_LONG_DESCRIPTION;
+import static org.cytoscape.work.ServiceProperties.COMMAND_NAMESPACE;
+import static org.cytoscape.work.ServiceProperties.COMMAND_SUPPORTS_JSON;
+
 
 public class CyActivator extends AbstractCyActivator {
 	
@@ -48,22 +51,28 @@ public class CyActivator extends AbstractCyActivator {
 
 	@Override
 	public void start(BundleContext bc) {
-		CyNetworkNaming cyNetworkNamingServiceRef = getService(bc, CyNetworkNaming.class);
-		CyNetworkFactory cyNetworkFactoryServiceRef = getService(bc, CyNetworkFactory.class);
-		CreateNetworkViewTaskFactory netViewCreator = getService(bc, CreateNetworkViewTaskFactory.class);
-		DialogTaskManager taskManagerServiceRef = getService(bc, DialogTaskManager.class);
-		CySwingApplication cySwingApplicationServiceRef = getService(bc, CySwingApplication.class);
-		CyApplicationManager cyApplicationManagerServiceRef = getService(bc, CyApplicationManager.class);
-		CyNetworkManager cyNetworkManagerServiceRef = getService(bc, CyNetworkManager.class);
-		CyNetworkViewManager cyNetworkViewManagerServiceRef = getService(bc, CyNetworkViewManager.class);
-		IconManager iconManagerServiceRef = getService(bc, IconManager.class);
 
-		NetworkMergeAction networkMergeAction = new NetworkMergeAction(cySwingApplicationServiceRef, cyApplicationManagerServiceRef,
-				cyNetworkManagerServiceRef, cyNetworkViewManagerServiceRef, cyNetworkFactoryServiceRef, cyNetworkNamingServiceRef,
-				taskManagerServiceRef, iconManagerServiceRef, netViewCreator);
+		CyServiceRegistrar serviceRegistrar = getService(bc, CyServiceRegistrar.class);
 
-		final Properties props = new Properties();
-		props.setProperty(ServiceProperties.ID, "networkMergeAction");
-		registerService(bc, networkMergeAction, CyAction.class, props); 
+		{
+			NetworkMergeAction networkMergeAction = new NetworkMergeAction(serviceRegistrar);
+
+			final Properties props = new Properties();
+			props.setProperty(ServiceProperties.ID, "networkMergeAction");
+			registerService(bc, networkMergeAction, CyAction.class, props); 
+		}
+
+		{
+			NetworkMergeCommandTaskFactory mergeTask = new NetworkMergeCommandTaskFactory(serviceRegistrar);
+			Properties props = new Properties();
+			props.setProperty(COMMAND_NAMESPACE, "network");
+			props.setProperty(COMMAND, "merge");
+			props.setProperty(COMMAND_DESCRIPTION, "Merge two or more networks");
+			props.setProperty(COMMAND_LONG_DESCRIPTION, "Combine networks via union, intersection, or difference.  Lots of parameters apply!");
+			props.setProperty(COMMAND_SUPPORTS_JSON, "true");
+			props.setProperty(COMMAND_EXAMPLE_JSON, "{\"Merged Table\":\"12345\"}");
+			registerService(bc, mergeTask, TaskFactory.class, props);
+		}
+
 	}
 }
