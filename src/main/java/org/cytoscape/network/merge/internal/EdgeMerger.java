@@ -24,7 +24,7 @@ public class EdgeMerger  {
 	final CyNetwork targetNetwork;
 	AttributeMap edgeAttributeMapping;
 	protected boolean withinNetworkMerge = false;
-
+	long processEdgeDone;
 	/*
 	 * the class responsible for combining attributes of edges
 	 * 
@@ -44,6 +44,14 @@ public class EdgeMerger  {
 
 	List<EdgeSpec> unmatchedEdges = new ArrayList<EdgeSpec>();
 	List<List<EdgeSpec>> matchedEdges = new ArrayList<List<EdgeSpec>>();
+	Merge parent;
+	class EdgeId
+	{
+		Long srcId;
+		Long targId;
+	}
+	
+	Map<EdgeId, EdgeSpec> edgeFinder = new HashMap<EdgeId, EdgeSpec>();
 	/**
 	*
 	*	mergeEdges starts with all edges from source networks
@@ -60,13 +68,14 @@ public class EdgeMerger  {
    * @param edgeAttributeMapping 
    * @return conflict map from id to attrs if exist, null otherwise
    */
-	public void mergeEdges(List<CyNetwork> networks, 
+	public void mergeEdges(Merge parentMerge,
+							List<CyNetwork> networks, 
 	                       CyNetwork targetNetwork, 
 	                       Operation operation, 
 	                       NodeMerger nodeMerger, 
 	                       AttributeMap edgeAttributeMapping	) {
 		this.edgeAttributeMapping = edgeAttributeMapping;
-
+		parent = parentMerge;
 
 // match edges
 		if (verbose) System.err.println(" ---------- EDGE MERGE -----------------");
@@ -74,6 +83,7 @@ public class EdgeMerger  {
 
 		// create matchedEdges and unmatchedEdges lists
 		boolean first = true;
+		withinNetworkMerge = false;
 		for (CyNetwork net : networks)
 		{
 			if (verbose) System.out.println("adding edges from " + NetworkMergeCommandTask.getNetworkName(net));
@@ -86,8 +96,10 @@ public class EdgeMerger  {
 					processEdge(new EdgeSpec(net,edge));
 			}
 			if (verbose) System.out.println(matchedEdges.size() + " / " + unmatchedEdges.size());
+			if (parent.wasCanceled())
+					return;
 		}
-
+processEdgeDone = System.currentTimeMillis();
 		// dump
 		if (verbose) 
 		{
@@ -163,6 +175,7 @@ public class EdgeMerger  {
 					matches.add(edge);
 					return;
 				}
+			break;		// no need to search all edges within a match
 		}
 		// next, search backwards thru unmatchedEdges, so we can delete entries as they match
 		for (int i = unmatchedEdges.size()-1; i >= 0; i--)

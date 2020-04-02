@@ -156,10 +156,10 @@ public class NodeMerger {
 
 		if (matchedNodes == null || matchedNodes.isEmpty())			return;
 		final int nattr = nodeAttributeMap.getSizeMergedAttributes();
-		CyRow row = targetNetwork.getRow(targetNode);
-		CyTable t = row.getTable();
+		CyRow targetRow = targetNetwork.getRow(targetNode);
+		CyTable t = targetRow.getTable();
 		if (countColumn != null)
-			row.set(countColumn.getName(), matchedNodes.size());
+			targetRow.set(countColumn.getName(), matchedNodes.size());
 		if (matchColumn != null)
 		{
 			NodeSpec firstNode = matchedNodes.get(0);
@@ -167,7 +167,7 @@ public class NodeMerger {
 			CyColumn col1 = matchingAttribute.get(srcNetwork);
 			CyRow srcRow = srcNetwork.getRow(firstNode.getNode());
 			String firstVal = srcRow.get(col1.getName(), String.class);
-			row.set(matchColumn.getName(), firstVal);
+			targetRow.set(matchColumn.getName(), firstVal);
 		}
 
 		for (int i = 0; i < nattr; i++) 
@@ -189,9 +189,9 @@ public class NodeMerger {
 				if (attrName.equals(attribute))
 					mergeAttribute(nodeToColMap, targetNode, targetColumn, null, targetNetwork);
 
-				final CyColumn colum = (table == null) ? null : table.getColumn(attrName);
+				final CyColumn column = (table == null) ? null : table.getColumn(attrName);
 				for (NodeSpec node : matchedNodes)
-					nodeToColMap.put(node.getNode(), colum);
+					nodeToColMap.put(node.getNode(), column);
 			}
 			mergeAttribute(nodeToColMap, targetNode, targetColumn, null, targetNetwork);
 //			for (CyNetwork net : mapNetToNodes.map.keySet())
@@ -277,14 +277,14 @@ public class NodeMerger {
 	}
 
 	//===============================================================================================
+	// NB: source and target refer to the nodes in the merge, not edge source or edge target
 
-
-	public void mergeAttribute(Map<CyNode, CyColumn> nodeColMap, CyNode node, CyColumn targetColumn, CyColumn countColumn, CyNetwork targetNet) 
+	public void mergeAttribute(Map<CyNode, CyColumn> nodeColMap, CyNode targetNode, CyColumn targetColumn, CyColumn countColumn, CyNetwork targetNet) 
 	{
 
 //		if (Merge.verbose) System.out.println("mergeAttribute " + (node == null ? "NULLNODE" : node.getSUID()) + " " + (targetColumn == null ? "NULLTARGET" : targetColumn.getName()));
 		if (nodeColMap == null) 	return;
-		if (node == null) 			return;
+		if (targetNode == null) 			return;
 		if (targetColumn == null) 	return;
 		if (targetNet == null) 		return;
 
@@ -293,92 +293,119 @@ public class NodeMerger {
 
 		for (CyNode source : nodeColMap.keySet()) {
 //			Merge.dumpRow(source);
-			final CyColumn fromColumn = nodeColMap.get(source);
+			final CyColumn sourceColumn = nodeColMap.get(source);
 //			if (Merge.verbose) System.out.println("merge: " + fromColumn.getName() + " " + node.getSUID() + " " + targetNet.getSUID() + " " + targetColumn.getName());
-			merge(source, fromColumn, targetNet, node, targetColumn, countColumn);
+			merge(source, sourceColumn, targetNet, targetNode, targetColumn, countColumn);
 		}
 	}
 
-	private void merge(CyNode from, CyColumn fromColumn, CyNetwork targetNet, CyNode target, CyColumn targetColumn, CyColumn countColumn) {
+	/*
+	 * merge 
+	 * 
+	 * we want to copy from source to target within one cell of the table
+	 * if target is empty, put source into it
+	 * if they are the same value, do nothing
+	 * if the target is a list, add the value to the list [set]
+	 * if there is a conflict, stash it away for later processing
+	 */
+	private void merge(CyNode sourceNode, CyColumn sourceColumn, CyNetwork targetNet, CyNode target, CyColumn targetColumn, CyColumn countColumn) {
 
-		if (from == null) 			return;
-		if (target == null) 		return;
-		if (from == fromColumn) 	return;
-		if (target == targetColumn) return;
+		if (sourceNode == null) 			return;
+		if (target == null) 				return;
+//		if (sourceNode == sourceColumn) 	return;		// ??
+//		if (target == targetColumn) 		return;				// ??
 
 		final ColumnType targColType = ColumnType.getType(targetColumn);
-		final ColumnType fromColType = ColumnType.getType(fromColumn);
+		final ColumnType sourceColType = ColumnType.getType(sourceColumn);
 		final CyRow targetRow = targetNet.getRow(target);
-		final CyTable fromTable = fromColumn.getTable();
-		final CyRow fromCyRow = fromTable.getRow(from.getSUID());
+		
+		final CyTable sourceTable = sourceColumn.getTable();
+		final CyRow sourceRow = sourceTable.getRow(sourceNode.getSUID());
 
 		if (targetRow == null) throw new NullPointerException("targetRow");
-		if (fromCyRow == null) throw new NullPointerException("fromCyRow");
+		if (sourceRow == null) throw new NullPointerException("fromCyRow");
 
-		if (fromColType == ColumnType.STRING) {
-			Class c = fromColType.getType().getClass();
-			String s = fromColumn.getName();
+if (verbose)
+	System.out.println(sourceNode.getSUID() + " " + sourceColumn.getName() + " " + sourceColType);
+	
+
+		if (sourceColType == ColumnType.STRING) 
+		{
+			String s = sourceColumn.getName();
 			try
 			{
-				final String fromValue = fromCyRow.get(s, String.class);
-				final String o2 = targetRow.get(targetColumn.getName(), String.class);
-
-
-//				System.out.println("mergeAttribute: " + fromValue + " - " + o2);
-				if (o2 == null || o2.length() == 0)  // null or empty attribute
+				
+				final Object sourceValue = sourceRow.get(s, String.class);
+				final Object extant = targColType.isList() ? 
+				targetRow.getList(targetColumn.getName(), targColType.getType())
+		 : targetRow.get(targetColumn.getName(), targColType.getType());
+				
+				if (sourceValue == null) return;
+				if (extant == null)  // null or empty attribute   || o2.length() == 0
 				{
-					targetRow.set(targetColumn.getName(), fromValue);						
-					if (countColumn != null) targetRow.set(countColumn.getName(), 1);	
+					targetRow.set(targetColumn.getName(), sourceValue);						
+					if (countColumn != null) targetRow.set(countColumn.getName(), 1);
+					return;
 				}
-				else if (fromValue != null && fromValue.equals(o2)) { } // the same, do nothing
-				else  if (conflictCollector != null)
-						conflictCollector.addConflict(from, fromColumn, target, targetColumn);
+				
+				if (sourceValue.equals(extant))  return;	 // the same value , do nothing
+				
+				conflictCollector.addConflict(sourceNode, sourceColumn, target, targetColumn);
 			}
 			catch (IllegalArgumentException ex)
 			{
 				if (verbose) 
-					System.out.println("IllegalArgumentException: " + ex.getMessage());
+					System.out.println("IllegalArgumentException: " + ex.getMessage() + " in merge");
 			}
-		} else if (!targColType.isList()) 
-		{ // simple type (Integer, Long, Double, Boolean)
-	if (fromCyRow == null || fromColType == null) return;
-	try
-	{
-		Object o1 = fromCyRow.get(fromColumn.getName(), fromColType.getType());
-			if (fromColType != targColType) 
-				o1 = targColType.castService(o1);
-			if (o1 == null) return;
-			Object o2 = targetRow.get(targetColumn.getName(), targColType.getType());
-			if (o2 == null) 
-			{
-				targetRow.set(targetColumn.getName(), o1);		
-				if (countColumn != null) targetRow.set(countColumn.getName(), 2);			
+		return;
+		
+	} 
+	
+	
+	
+	if (!sourceColType.isList() && !targColType.isList()) 			// simple type: (Integer, Long, Double, Boolean)
+	{ 
+		Object sourceValue = sourceRow.get(sourceColumn.getName(), sourceColType.getType());
+		if (sourceValue == null) 
+		{
+			System.err.println("missing value: " + sourceColumn.getName() + " " + sourceColType.getType());
+			return;
+		}
+			
+		if (!sourceColType.equals(targColType))
+				sourceValue = targColType.castService(sourceValue);
+		final Object extant = targetRow.get(targetColumn.getName(), targColType.getType());
+		if (extant == null) 
+		{
+			targetRow.set(targetColumn.getName(), sourceValue);		
+			if (countColumn != null) targetRow.set(countColumn.getName(), 2);			
 //				System.out.println("mergeAttribute: " + o1);
-			}
-			else if (o1.equals(o2)) {}
-			else if (conflictCollector != null)
-					conflictCollector.addConflict(from, fromColumn, target, targetColumn);
-	}
-	catch (NullPointerException ex)
-	{
-		if (verbose) 
-			System.out.println("NullPointerException");
-		//  ?? not sure why we get here!
-	}
-	} else { // toattr is list type
-			// TODO: use a conflict handler to handle this part?
-			ColumnType plainType = targColType.toPlain();
+			return;
+		}
+			
+		if (sourceValue.equals(extant)) return;			// TODO -- does this work for Doubles
+			
+		conflictCollector.addConflict(sourceNode, sourceColumn, target, targetColumn);
 
-			List l2 = targetRow.getList(targetColumn.getName(), plainType.getType());
-			if (l2 == null) {
+		return;
+		
+	} 
+	
+	if (targColType.isList())	// targColType is a list
+	{
+			// TODO: use a conflict handler to handle this part?
+	ColumnType plainType = targColType.toPlain();
+
+	List l2 = targetRow.getList(targetColumn.getName(), targColType.getType());
+	if (l2 == null) {
 				l2 = new ArrayList<Object>();
 			}
 
-			if (!fromColType.isList()) {
+	if (!sourceColType.isList()) {
 				// Simple data type
-				Object o1 = fromCyRow.get(fromColumn.getName(), fromColType.getType());
-				if (o1 != null) {
-					if (plainType != fromColType) 
+		Object o1 = sourceRow.get(sourceColumn.getName(), sourceColType.getType());
+		if (o1 != null) {
+			if (plainType != sourceColType) 
 						o1 = plainType.castService(o1);
 					if (!l2.contains(o1)) 
 						l2.add(o1);
@@ -389,15 +416,15 @@ public class NodeMerger {
 				}
 				}
 			} else { // from list
-				final ColumnType fromPlain = fromColType.toPlain();
-				final List<?> list = fromCyRow.getList(fromColumn.getName(), fromPlain.getType());
+				final ColumnType fromPlain = sourceColType.toPlain();
+				final List<?> list = sourceRow.getList(sourceColumn.getName(), fromPlain.getType());
 				if(list == null)				return;
 
 				for (final Object listValue:list) {
 					if(listValue == null)		continue;
 
 					final Object validValue;
-					if (plainType != fromColType) 
+					if (plainType != sourceColType.toPlain()) 
 						validValue = plainType.castService(listValue);
 					else
 						validValue = listValue;

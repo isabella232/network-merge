@@ -30,7 +30,6 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -237,7 +236,7 @@ class MergeAttributeTable extends JTable {
 						mergedNetworkName = title;
 						fireTableHeaderChanged();
 					} else {
-						// TODO: this is just for remove the duplicate click event; there should be better ways
+						// TODO: this is just to remove the duplicate click event; there should be better ways
 						fireTableHeaderChanged();
 					}
 				}
@@ -272,7 +271,7 @@ class MergeAttributeTable extends JTable {
 
 			attributeMapping.addAttributes(netAttrMap, attr_merged, indexMatchingAttr);
 			attributeMapping.setMergedAttributeType(indexMatchingAttr,
-					ColumnType.getReasonableCompatibleConversionType(types).toList());
+					ColumnType.getReasonableCompatibleConversionType(types));  //.toList()
 			update = true;
 		} else {
 			List<CyNetwork> networks = matchingAttribute.getNetworkList();

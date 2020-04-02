@@ -13,7 +13,6 @@ import org.cytoscape.network.merge.internal.model.AttributeMap;
 import org.cytoscape.network.merge.internal.model.NetColumnMap;
 import org.cytoscape.network.merge.internal.util.AttributeValueMatcher;
 import org.cytoscape.network.merge.internal.util.ColumnType;
-import org.cytoscape.view.vizmap.VisualMappingManager;
 import org.cytoscape.work.TaskMonitor;
 
 /**
@@ -36,6 +35,7 @@ public class Merge  {
 
 	// For canceling task
 	private volatile boolean interrupted;
+	public boolean wasCanceled() {		return interrupted;	}
 
 	/**
 	 * 
@@ -106,7 +106,9 @@ public class Merge  {
 	CyColumn countColumn = null;
 	CyColumn edgeMatchColumn = null;
 	CyColumn edgeCountColumn = null;
-
+	long nodeMergeStart, nodeMergeEnd;
+	long edgeMergeStart, edgeMergeEnd;
+	long edgeMergeAddUnmatched;
 	//=================================================================================
 		private List<CyNetwork> networks;
 		private CyNetwork targetNetwork;
@@ -136,17 +138,21 @@ public class Merge  {
 			if(interrupted) 			return null;		// Check cancel status
 
 			taskMonitor.setStatusMessage("Merging nodes...");
+			nodeMergeStart = System.currentTimeMillis();
 			nodeMerger.mergeNodes(networks, targetNetwork, operation, nodeAttributeMap, matchingAttribute, attributeValueMatcher, matchColumn, countColumn);
-			if(!interrupted) 			
+			nodeMergeEnd = System.currentTimeMillis();
+		if(!interrupted) 			
 			{
 				taskMonitor.setStatusMessage("Merging edges...");
-				edgeMerger.mergeEdges(networks, targetNetwork, operation, nodeMerger, edgeAttributeMap);
+				edgeMergeStart = System.currentTimeMillis();
+				edgeMerger.mergeEdges(this, networks, targetNetwork, operation, nodeMerger, edgeAttributeMap);
+				edgeMergeEnd = System.currentTimeMillis();
 			}
 
 			if (verbose) System.err.println("H return mergedNetwork ---------------------------------------" );
 
 			// #12658
-			CyNetwork firstSource = networks.get(0);
+//			CyNetwork firstSource = networks.get(0);
 
 			return mergedNetwork;
 		}

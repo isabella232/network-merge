@@ -81,7 +81,9 @@ public class NetColumnMap  {		//implements MatchingAttribute
         
         //putAttributeForMatching(net,net.getDefaultNodeTable().getPrimaryKey());
         CyTable table = net.getDefaultNodeTable();
-        CyColumn col = table.getColumn("name");
+        CyColumn col = table.getColumn("query term");			// Handle STRING database special case
+        if (col == null) 
+        	col = table.getColumn("name");
         map.put(net, col);
         list.add(net);
 }

@@ -504,11 +504,15 @@ public class NetworkMergeDialog extends JDialog {
 							"Warning", JOptionPane.WARNING_MESSAGE);
 			return;
 		}
-
+		// it seems that we have to add multiply selected items at the front, but singles at the end (?)
+		boolean multipleSelection = indices.length > 1;
 		for (int i = indices.length - 1; i >= 0; i--) {
 			CyNetwork removed = unselectedNetData.removeElement(indices[i]);
 //				int idx = selectedNetData.getSize();
-					selectedNetData.add(removed);
+			{
+				if (multipleSelection) selectedNetData.add(0, removed);
+				else selectedNetData.add(removed);
+			}
 			addRemoveAttributeMapping(removed, true);
 		}
 
@@ -699,26 +703,26 @@ public class NetworkMergeDialog extends JDialog {
 			
 			layout.setHorizontalGroup(layout.createParallelGroup(Alignment.LEADING, true)
 					.addComponent(matchingColumnsLbl)
-					.addComponent(getAttrScr(), DEFAULT_SIZE, DEFAULT_SIZE, Short.MAX_VALUE)
+					.addComponent(getAttrScroller(), DEFAULT_SIZE, DEFAULT_SIZE, Short.MAX_VALUE)
 					.addComponent(getIdMappingCkb())
 					.addComponent(howLbl)
 					.addComponent(getMergeAttrTp(), DEFAULT_SIZE, DEFAULT_SIZE, Short.MAX_VALUE)
-//					.addComponent(getInNetMergeCkb())
+					.addComponent(getInNetMergeCkb())
 			);
 			layout.setVerticalGroup(layout.createSequentialGroup()
 					.addComponent(matchingColumnsLbl)
-					.addComponent(getAttrScr(), DEFAULT_SIZE, DEFAULT_SIZE, Short.MAX_VALUE)
+					.addComponent(getAttrScroller(), DEFAULT_SIZE, DEFAULT_SIZE, Short.MAX_VALUE)
 					.addComponent(getIdMappingCkb())
 					.addComponent(howLbl)
 					.addComponent(getMergeAttrTp(), DEFAULT_SIZE, DEFAULT_SIZE, Short.MAX_VALUE)
-//					.addComponent(getInNetMergeCkb())
+					.addComponent(getInNetMergeCkb())
 			);
 		}
 
 		return advancedOptionsPnl;
 	}
 	
-	private JScrollPane getAttrScr() {
+	private JScrollPane getAttrScroller() {
 		if (attrScr == null) {
 			attrScr = new JScrollPane();
 			attrScr.setMinimumSize(new Dimension(100, 50));
